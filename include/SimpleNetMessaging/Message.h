@@ -7,20 +7,22 @@
 
 namespace snm
 {
-// std::vector<unsigned char> messageToBytes(const IMessage& message);
-// std::shared_ptr<IMessage> bytesToMessage(const std::vector<unsigned char>& bytes);
     class Message;
     using MessagePtr = Ptr<Message>;
 
     class Message
     {
         using Variant = boost::variant<bool, unsigned short, unsigned int, unsigned long long, 
-            short, int, long long, double, char, std::string, Vector<bool>, Vector<unsigned short>, 
+            short, int, long long, double, unsigned char, std::string, Vector<bool>, Vector<unsigned short>, 
             Vector<unsigned int>, Vector<unsigned long long>, Vector<short>, Vector<int>, Vector<long long>,
-            Vector<double>, Vector<char>, Vector<std::string>>;
+            Vector<double>, Vector<unsigned char>, Vector<std::string>>;
 
         using MessageData = Pair<DataType, Variant>;
         using MessageDataPtr = Ptr<MessageData>;
+
+        Message();
+
+        Vector<MessageDataPtr> _data;
     public:
         // Check if the message is empty
         bool isEmpty() const;
@@ -58,19 +60,19 @@ namespace snm
             virtual void operator()(int data) {}
             virtual void operator()(long long data) {}
             virtual void operator()(double data) {}
-            virtual void operator()(char data) {}
+            virtual void operator()(unsigned char data) {}
             virtual void operator()(const std::string& data) {}
 
-            virtual void operator()(const std::vector<bool>& data) {}
-            virtual void operator()(const std::vector<unsigned short>& data) {}
-            virtual void operator()(const std::vector<unsigned int>& data) {}
-            virtual void operator()(const std::vector<unsigned long long>& data) {}
-            virtual void operator()(const std::vector<short>& data) {}
-            virtual void operator()(const std::vector<int>& data) {}
-            virtual void operator()(const std::vector<long long>& data) {}
-            virtual void operator()(const std::vector<double>& data) {}
-            virtual void operator()(const std::vector<char>& data) {}
-            virtual void operator()(const std::vector<std::string>& data) {}
+            virtual void operator()(const Vector<bool>& data) {}
+            virtual void operator()(const Vector<unsigned short>& data) {}
+            virtual void operator()(const Vector<unsigned int>& data) {}
+            virtual void operator()(const Vector<unsigned long long>& data) {}
+            virtual void operator()(const Vector<short>& data) {}
+            virtual void operator()(const Vector<int>& data) {}
+            virtual void operator()(const Vector<long long>& data) {}
+            virtual void operator()(const Vector<double>& data) {}
+            virtual void operator()(const Vector<unsigned char>& data) {}
+            virtual void operator()(const Vector<std::string>& data) {}
 
             void update(unsigned int index, DataType type) { _index = index; _type = type; }
         };
@@ -97,30 +99,24 @@ namespace snm
             Builder& addInt(int data);
             Builder& addLong(long long data);
             Builder& addDouble(double data);
-            Builder& addChar(char data);
+            Builder& addChar(unsigned char data);
             Builder& addString(const char data[]);
             Builder& addString(const std::string& data);
 
-            Builder& addBoolList(const std::vector<bool>& data);
-            Builder& addUShortList(const std::vector<unsigned short>& data);
-            Builder& addUIntList(const std::vector<unsigned int>& data);
-            Builder& addULongList(const std::vector<unsigned long long>& data);
-            Builder& addShortList(const std::vector<short>& data);
-            Builder& addIntList(const std::vector<int>& data);
-            Builder& addLongList(const std::vector<long long>& data);
-            Builder& addDoubleList(const std::vector<double>& data);
-            Builder& addCharList(const std::vector<char>& data);
-            Builder& addStringList(const std::vector<std::string>& data);
+            Builder& addBoolVector(const Vector<bool>& data);
+            Builder& addUShortVector(const Vector<unsigned short>& data);
+            Builder& addUIntVector(const Vector<unsigned int>& data);
+            Builder& addULongVector(const Vector<unsigned long long>& data);
+            Builder& addShortVector(const Vector<short>& data);
+            Builder& addIntVector(const Vector<int>& data);
+            Builder& addLongVector(const Vector<long long>& data);
+            Builder& addDoubleVector(const Vector<double>& data);
+            Builder& addCharVector(const Vector<unsigned char>& data);
+            Builder& addStringVector(const Vector<std::string>& data);
 
             Builder& addMessage(const Message& message);
 
             MessagePtr finish();
         };
-    private:
-        Message();
-
-        Vector<MessageDataPtr> _data;
     };
-
-
 }

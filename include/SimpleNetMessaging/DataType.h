@@ -20,7 +20,11 @@ namespace snm
         UShortList = 0x12, UIntList = 0x13, ULongList  = 0x14, 
         ShortList  = 0x15, IntList  = 0x16, LongList   = 0x17,
         DoubleList = 0x18, CharList = 0x19, StringList = 0x1A,
+
+        Invalid = 0xFF
     };
+
+    DataType charToDataType(unsigned char character);
 
     template <typename T>
     struct GetDataType : std::integral_constant<DataType, Null> {};
@@ -41,7 +45,7 @@ namespace snm
     template <>
     struct GetDataType<double> : std::integral_constant<DataType, Double> {};
     template <>
-    struct GetDataType<char> : std::integral_constant<DataType, Char> {};
+    struct GetDataType<unsigned char> : std::integral_constant<DataType, Char> {};
     template <>
     struct GetDataType<std::string> : std::integral_constant<DataType, String> {};
     template <typename T>
