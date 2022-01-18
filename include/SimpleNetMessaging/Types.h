@@ -2,8 +2,9 @@
 
 #include <memory>
 #include <vector>
-#include <limits>
 #include <type_traits>
+
+#include <boost/variant.hpp>
 
 namespace snm
 {
@@ -16,10 +17,8 @@ namespace snm
     template <typename T, typename T2>
     using Pair = std::pair<T, T2>;
 
-    template <typename T1, typename T2>
-    using FitsInto = std::integral_constant<bool,  
-        std::numeric_limits<T1>::is_specialized &&
-        std::numeric_limits<T2>::is_specialized &&
-        (std::numeric_limits<T1>::max() <= std::numeric_limits<T2>::max()) && 
-        (std::numeric_limits<T1>::min() >= std::numeric_limits<T2>::min())>;
+    using DataVariant = boost::variant<bool, unsigned short, unsigned int, unsigned long long, 
+            short, int, long long, double, unsigned char, std::string, Vector<bool>, Vector<unsigned short>, 
+            Vector<unsigned int>, Vector<unsigned long long>, Vector<short>, Vector<int>, Vector<long long>,
+            Vector<double>, Vector<unsigned char>, Vector<std::string>>;
 }

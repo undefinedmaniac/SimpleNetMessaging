@@ -3,27 +3,19 @@
 #include "SimpleNetMessaging/Types.h"
 #include "SimpleNetMessaging/DataType.h"
 
-#include <boost/variant.hpp>
-
 namespace snm
 {
-    class Message;
-    using MessagePtr = Ptr<Message>;
-
     class Message
     {
-        using Variant = boost::variant<bool, unsigned short, unsigned int, unsigned long long, 
-            short, int, long long, double, unsigned char, std::string, Vector<bool>, Vector<unsigned short>, 
-            Vector<unsigned int>, Vector<unsigned long long>, Vector<short>, Vector<int>, Vector<long long>,
-            Vector<double>, Vector<unsigned char>, Vector<std::string>>;
-
-        using MessageData = Pair<DataType, Variant>;
+        using MessageData = Pair<DataType, DataVariant>;
         using MessageDataPtr = Ptr<MessageData>;
 
-        Message();
+        Message(Vector<MessageDataPtr>&& data);
 
         Vector<MessageDataPtr> _data;
     public:
+        Message();
+
         // Check if the message is empty
         bool isEmpty() const;
 
@@ -38,9 +30,9 @@ namespace snm
         const T& getData(unsigned int index) const { return boost::get<T>(std::get<1>(*_data[index])); }
 
         // Get submessages
-        MessagePtr getSubmessage(unsigned int startIndex, unsigned int length) const;
-        MessagePtr getLeft(unsigned int length) const;
-        MessagePtr getRight(unsigned int length) const;
+        Message getSubmessage(unsigned int startIndex, unsigned int length) const;
+        Message getLeft(unsigned int length) const;
+        Message getRight(unsigned int length) const;
 
         class ContentIterator : public boost::static_visitor<>
         {
@@ -87,7 +79,7 @@ namespace snm
             template <typename T>
             void addDataRef(const T& data);
 
-            MessagePtr _message;
+            Vector<MessageDataPtr> _messageData;
         public:
             Builder& start();
 
@@ -116,7 +108,7 @@ namespace snm
 
             Builder& addMessage(const Message& message);
 
-            MessagePtr finish();
+            Message finish();
         };
     };
 }

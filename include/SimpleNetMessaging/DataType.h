@@ -53,4 +53,7 @@ namespace snm
         std::conditional<GetDataType<T>::value == DataType::Null, GetDataType<T>, 
         std::integral_constant<DataType, 
         static_cast<snm::DataType>(GetDataType<T>::value + DataType::BoolList - DataType::Bool)>>::type::value> {};
+
+    template <typename T>
+    using GetDataTypeRemoveCV = typename GetDataType<std::remove_cv_t<T>>::type;
 }

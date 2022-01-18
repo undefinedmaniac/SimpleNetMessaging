@@ -14,9 +14,8 @@ namespace snm
     };
 
     Vector<unsigned char> serializeMessage(const Message& message);
-    Vector<unsigned char> serializeMessage(const MessagePtr message);
 
     void deserializeBuild(Message::Builder& builder, const Vector<unsigned char>& messageData);
-    MessagePtr deserializeMessage(const Vector<unsigned char>& messageData);
-    MessagePtr deserializeMessage(Message::Builder& builder, const Vector<unsigned char>& messageData);
+    Message deserializeMessage(const Vector<unsigned char>& messageData);
+    Message deserializeMessage(Message::Builder& builder, const Vector<unsigned char>& messageData);
 }

@@ -1,5 +1,8 @@
-set(HEADER_LIST "${SimpleNetMessaging_SOURCE_DIR}/include/SimpleNetMessaging/Message.h" "${SimpleNetMessaging_SOURCE_DIR}/include/SimpleNetMessaging/DataType.h" "${SimpleNetMessaging_SOURCE_DIR}/include/SimpleNetMessaging/Types.h" "${SimpleNetMessaging_SOURCE_DIR}/include/SimpleNetMessaging/MessageSerializer.h")
+set(HEADER_LIST Message.h MessageSerializer.h DataType.h Variable.h VariableDisplay.h Types.h)
+set(SOURCE_LIST Message.cpp MessageSerializer.cpp DataType.cpp Variable.cpp VariableDisplay.cpp)
 
-add_library(simple_net_messaging Message.cpp MessageSerializer.cpp DataType.cpp ${HEADER_LIST})
-target_include_directories(simple_net_messaging PUBLIC ../include)
-target_link_libraries(simple_net_messaging PUBLIC Boost::boost)
+set(INCLUDE_DIR ../include/SimpleNetMessaging/)
+list(TRANSFORM HEADER_LIST PREPEND ${INCLUDE_DIR})
+add_library(SimpleNetMessaging ${SOURCE_LIST} ${HEADER_LIST})
+target_include_directories(SimpleNetMessaging PUBLIC ../include)
+target_link_libraries(SimpleNetMessaging PUBLIC Boost::boost)

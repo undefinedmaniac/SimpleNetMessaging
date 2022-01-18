@@ -5,6 +5,14 @@
 
 namespace snm
 {
+    static_assert(std::is_same<unsigned short, uint16_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(std::is_same<unsigned int, uint32_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(std::is_same<unsigned long long, uint64_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(std::is_same<short, int16_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(std::is_same<int, int32_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(std::is_same<long long, int64_t>::value, "Serialization will not work correctly due to type mismatch");
+    static_assert(sizeof(double) == sizeof(uint64_t), "Serialization will not work correctly due to type mismatch");
+
     void writeChar(unsigned char* writePos, unsigned char value) { *writePos = value; }
     void writeString(unsigned char* writePos, const std::string& value) { 
         // Check if string is too long to be serialized with our format
@@ -157,79 +165,87 @@ namespace snm
     }
 
     Vector<unsigned char> MessageSerializer::serialize(const Message& message) {
-        static_assert(FitsInto<unsigned short, uint16_t>::value, "The unsigned short type cannot fit into an uint16_t!");
-        static_assert(FitsInto<unsigned int, uint32_t>::value, "The unsigned int type cannot fit into an uint32_t!");
-        static_assert(FitsInto<unsigned long long, uint64_t>::value, "The unsigned long long type cannot fit into an uint64_t!");
-        static_assert(FitsInto<short, int16_t>::value, "The short type cannot fit into an int16_t!");
-        static_assert(FitsInto<int, int32_t>::value, "The int type cannot fit into an int32_t!");
-        static_assert(FitsInto<long long, int64_t>::value, "The long long type cannot fit into an int64_t!");
-        static_assert(sizeof(double) == 8, "Serialize will not work correctly without 8 byte doubles");
-
         _binaryMessage.clear();
         _binaryMessage.resize(message.size() + 1);
         message.iterate(*this);
-        return std::move(_binaryMessage);
+        return _binaryMessage;
     }
 
     Vector<unsigned char> serializeMessage(const Message& message) {
-        static MessageSerializer serializer;
-        return std::move(serializer.serialize(message));
+        MessageSerializer serializer;
+        return serializer.serialize(message);
     }
 
-    Vector<unsigned char> serializeMessage(const MessagePtr message) {
-        return std::move(serializeMessage(*message));
-    }
+    unsigned char readChar(const unsigned char* readPtr) { return *readPtr; }
 
-    template <typename T>
-    T deserialize(std::size_t messageSize, const unsigned char*& readPtr, std::size_t& readBytes, std::function<T(const unsigned char*)> readFunction) {
-        if (messageSize - readBytes < sizeof(T))
-            throw SerializationError("Invalid content data");
-
-        T value = readFunction(readPtr);
-        readPtr += sizeof(T);
-        readBytes += sizeof(T);
-        return value;
-    }
-
-    std::string deserialize(std::size_t messageSize, const unsigned char*& readPtr, std::size_t& readBytes) {
-        unsigned short stringSize = deserialize<uint16_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u16);
-        if (messageSize - readBytes < stringSize)
-            throw SerializationError("Invalid content data");
-
-        std::string str = std::string(reinterpret_cast<const char*>(readPtr), stringSize);
-        readPtr += stringSize;
-        readBytes += stringSize;
-        return std::move(str);
+    double readDouble(const unsigned char* readPtr)
+    { 
+        uint64_t data = boost::endian::load_big_u64(readPtr);
+        return reinterpret_cast<double&>(data);
     }
 
     template <typename T, typename F>
-    Vector<T> deserializeVector(std::size_t messageSize, const unsigned char*& readPtr, std::size_t& readBytes, F readFunction) {
-        unsigned short vectorSize = deserialize<uint16_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u16);
+    T deserialize(const unsigned char*& readPtr, const unsigned char* messageEnd, F readFunction, std::size_t readSize = sizeof(T)) {
+        if (messageEnd - readPtr < readSize)
+            throw SerializationError("Invalid content data");
+
+        T value = readFunction(readPtr);
+        readPtr += readSize;
+        return value;
+    }
+
+    using namespace boost::endian;
+    using namespace std::placeholders;
+    auto deserializeBool = std::bind(deserialize<bool, decltype(readChar)>, _1, _2, readChar, sizeof(char));
+    auto deserializeUShort = std::bind(deserialize<unsigned short, decltype(load_big_u16)>, _1, _2, load_big_u16, sizeof(uint16_t));
+    auto deserializeUInt = std::bind(deserialize<unsigned int, decltype(load_big_u32)>, _1, _2, load_big_u32, sizeof(uint32_t));
+    auto deserializeULong = std::bind(deserialize<unsigned long long, decltype(load_big_u64)>, _1, _2, load_big_u64, sizeof(uint64_t));
+    auto deserializeShort = std::bind(deserialize<short, decltype(load_big_s16)>, _1, _2, load_big_s16, sizeof(int16_t));
+    auto deserializeInt = std::bind(deserialize<int, decltype(load_big_s32)>, _1, _2, load_big_s32, sizeof(int32_t));
+    auto deserializeLong = std::bind(deserialize<long long, decltype(load_big_s64)>, _1, _2, load_big_s64, sizeof(int64_t));
+    auto deserializeDouble = std::bind(deserialize<double, decltype(readDouble)>, _1, _2, readDouble, sizeof(double));
+    auto deserializeChar = std::bind(deserialize<unsigned char, decltype(readChar)>, _1, _2, readChar, sizeof(char));
+
+    std::string deserializeString(const unsigned char*& readPtr, const unsigned char* messageEnd) {
+        unsigned short stringSize = deserializeUShort(readPtr, messageEnd);
+        return deserialize<std::string>(readPtr, messageEnd, 
+            [stringSize](const unsigned char* readPtr){ return std::string(reinterpret_cast<const char*>(readPtr), stringSize); }, stringSize);
+    }
+
+    template <typename T, typename F>
+    Vector<T> deserializeVector(const unsigned char*& readPtr, const unsigned char* messageEnd, F readFunction) {
+        unsigned short vectorSize = deserializeUShort(readPtr, messageEnd);
 
         Vector<T> vector;
         vector.reserve(vectorSize);
         for (unsigned short i = 0; i < vectorSize; i++)
-            vector.push_back(readFunction(messageSize, readPtr, readBytes));
+            vector.push_back(readFunction(readPtr, messageEnd));
 
-        return std::move(vector);
+        return vector;
+    }
+
+    Vector<bool> deserializeBoolVector(const unsigned char*& readPtr, const unsigned char* messageEnd) {
+        const std::size_t BITS_PER_BYTE = 8;
+
+        unsigned short vectorSize = deserializeUShort(readPtr, messageEnd);
+
+        Vector<bool> vector;
+        vector.reserve(vectorSize);
+        for (unsigned short i = 0; i < vectorSize; i++)
+            vector.push_back(*(readPtr + i / BITS_PER_BYTE) & (0x80 >> i % 8));
+
+        readPtr += ((vectorSize + BITS_PER_BYTE - 1) / BITS_PER_BYTE);
+
+        return vector;
     }
 
     void deserializeBuild(Message::Builder& builder, const Vector<unsigned char>& messageData) {
-        static_assert(FitsInto<uint16_t, unsigned short>::value, "The uint16_t type cannot fit into an unsigned short!");
-        static_assert(FitsInto<uint32_t, unsigned int>::value, "The uint32_t type cannot fit into an unsigned int!");
-        static_assert(FitsInto<uint64_t, unsigned long long>::value, "The uint64_t type cannot fit into an unsigned long long!");
-        static_assert(FitsInto<int16_t, short>::value, "The int16_t type cannot fit into a short!");
-        static_assert(FitsInto<int32_t, int>::value, "The int32_t type cannot fit into an int!");
-        static_assert(FitsInto<int64_t, long long>::value, "The int64_t type cannot fit into a long long!");
-        static_assert(sizeof(double) == 8, "Deserialize will not work correctly without 8 byte doubles");
-
         // Do nothing for an empty message
         if (messageData.empty())
             return;
 
-        const std::size_t messageSize = messageData.size();
         const unsigned char* readPtr = messageData.data();
-        std::size_t readBytes = 0;
+        const unsigned char* messageEnd = readPtr + messageData.size();
 
         // Parse the type data out of the message data
         Vector<DataType> typeData;
@@ -241,7 +257,7 @@ namespace snm
 
                 typeData.push_back(type);
 
-                if (++readBytes >= messageSize)
+                if (readPtr == messageEnd)
                     throw SerializationError("Invalid type data");
             }
         }
@@ -249,109 +265,75 @@ namespace snm
         // Parse each data type and insert it into the builder
         for (DataType type : typeData) {
             switch (type) {
-                using namespace std::placeholders;
-                case Bool: {
-                    builder.addBool(deserialize<char>(messageSize, readPtr, readBytes, [](const unsigned char* readPtr){ return *readPtr; }));
+                case Bool:
+                    builder.addBool(deserializeBool(readPtr, messageEnd));
                     break;
-                }
-                case UShort: {
-                    builder.addUShort(deserialize<uint16_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u16));
+                case UShort:
+                    builder.addUShort(deserializeUShort(readPtr, messageEnd));
                     break;
-                }
-                case UInt: {
-                    builder.addUInt(deserialize<uint32_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u32));
+                case UInt:
+                    builder.addUInt(deserializeUInt(readPtr, messageEnd));
                     break;
-                }
-                case ULong: {
-                    builder.addULong(deserialize<uint64_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u64));
+                case ULong:
+                    builder.addULong(deserializeULong(readPtr, messageEnd));
                     break;
-                }
-                case Short: {
-                    builder.addShort(deserialize<int16_t>(messageSize, readPtr, readBytes, boost::endian::load_big_s16));
+                case Short:
+                    builder.addShort(deserializeShort(readPtr, messageEnd));
                     break;
-                }
-                case Int: {
-                    builder.addInt(deserialize<int32_t>(messageSize, readPtr, readBytes, boost::endian::load_big_s32));
+                case Int:
+                    builder.addInt(deserializeInt(readPtr, messageEnd));
                     break;
-                }
-                case Long: {
-                    builder.addLong(deserialize<int64_t>(messageSize, readPtr, readBytes, boost::endian::load_big_s64));
+                case Long:
+                    builder.addLong(deserializeLong(readPtr, messageEnd));
                     break;
-                }
-                case Double: {
-                    uint64_t data = deserialize<uint64_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u64);
-                    builder.addDouble(reinterpret_cast<double&>(data));
+                case Double:
+                    builder.addDouble(deserializeDouble(readPtr, messageEnd));
                     break;
-                }
-                case Char: {
-                    builder.addChar(deserialize<unsigned char>(messageSize, readPtr, readBytes, [](const unsigned char* readPtr){ return *readPtr; }));
+                case Char:
+                    builder.addChar(deserializeChar(readPtr, messageEnd));
                     break;
-                }
-                case String: {
-                    builder.addString(deserialize(messageSize, readPtr, readBytes));
+                case String:
+                    builder.addString(deserializeString(readPtr, messageEnd));
                     break;
-                }
-                case BoolList: {
+                case BoolList:
+                    builder.addBoolVector(deserializeBoolVector(readPtr, messageEnd));
                     break;
-                }
-                case UShortList: {
-                    builder.addUShortVector(deserializeVector<unsigned short>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<uint16_t>, _1, _2, _3, boost::endian::load_big_u16)));
+                case UShortList:
+                    builder.addUShortVector(deserializeVector<unsigned short>(readPtr, messageEnd, deserializeUShort));
                     break;
-                }
-                case UIntList: {
-                    builder.addUIntVector(deserializeVector<unsigned int>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<uint32_t>, _1, _2, _3, boost::endian::load_big_u32)));
+                case UIntList:
+                    builder.addUIntVector(deserializeVector<unsigned int>(readPtr, messageEnd, deserializeUInt));
                     break;
-                }
-                case ULongList: {
-                    builder.addULongVector(deserializeVector<unsigned long long>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<uint64_t>, _1, _2, _3, boost::endian::load_big_u64)));
+                case ULongList:
+                    builder.addULongVector(deserializeVector<unsigned long long>(readPtr, messageEnd, deserializeULong));
                     break;
-                }
-                case ShortList: {
-                    builder.addShortVector(deserializeVector<short>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<int16_t>, _1, _2, _3, boost::endian::load_big_s16)));
+                case ShortList:
+                    builder.addShortVector(deserializeVector<short>(readPtr, messageEnd, deserializeShort));
                     break;
-                }
-                case IntList: {
-                    builder.addIntVector(deserializeVector<int>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<int32_t>, _1, _2, _3, boost::endian::load_big_s32)));
+                case IntList:
+                    builder.addIntVector(deserializeVector<int>(readPtr, messageEnd, deserializeInt));
                     break;
-                }
-                case LongList: {
-                    builder.addLongVector(deserializeVector<long long>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<int64_t>, _1, _2, _3, boost::endian::load_big_s64)));
+                case LongList:
+                    builder.addLongVector(deserializeVector<long long>(readPtr, messageEnd, deserializeLong));
                     break;
-                }
-                case DoubleList: {
-                    builder.addDoubleVector(deserializeVector<double>(messageSize, readPtr, readBytes, 
-                        [](std::size_t messageSize, const unsigned char*& readPtr, std::size_t& readBytes)
-                        { 
-                            uint64_t data = deserialize<uint64_t>(messageSize, readPtr, readBytes, boost::endian::load_big_u64);
-                            return reinterpret_cast<double&>(data);
-                        }));
+                case DoubleList:
+                    builder.addDoubleVector(deserializeVector<double>(readPtr, messageEnd, deserializeDouble));
                     break;
-                }
-                case CharList: {
-                    builder.addCharVector(deserializeVector<unsigned char>(messageSize, readPtr, readBytes, 
-                        std::bind(deserialize<unsigned char>, _1, _2, _3, [](const unsigned char* readPtr){ return *readPtr; })));
+                case CharList:
+                    builder.addCharVector(deserializeVector<unsigned char>(readPtr, messageEnd, deserializeChar));
                     break;
-                }
-                case StringList: {
-                    std::string (*functionPtr)(std::size_t, const unsigned char*&, std::size_t&) = &deserialize;
-                    builder.addStringVector(deserializeVector<std::string>(messageSize, readPtr, readBytes, functionPtr));
+                case StringList:
+                    builder.addStringVector(deserializeVector<std::string>(readPtr, messageEnd, deserializeString));
                     break;
-                }
             }
         }
     }
 
-    MessagePtr deserializeMessage(const Vector<unsigned char>& messageData) {
-        static Message::Builder builder;
+    Message deserializeMessage(const Vector<unsigned char>& messageData) {
+        Message::Builder builder;
         return deserializeMessage(builder, messageData);
     }
-    MessagePtr deserializeMessage(Message::Builder& builder, const Vector<unsigned char>& messageData) {
+    Message deserializeMessage(Message::Builder& builder, const Vector<unsigned char>& messageData) {
         deserializeBuild(builder.start(), messageData);
         return builder.finish();
     }

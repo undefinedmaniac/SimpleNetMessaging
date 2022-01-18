@@ -1,9 +1,9 @@
 #include "SimpleNetMessaging/Message.h"
 
-#include <vector>
-
 namespace snm
 {
+    Message::Message(Vector<MessageDataPtr>&& data) : _data(data) {}
+
     Message::Message() {}
 
     // Check if the message is empty
@@ -15,17 +15,17 @@ namespace snm
     // Get the type information for a part of the message
     DataType Message::getType(unsigned int index) const { return _data[index]->first; }
 
-    MessagePtr Message::getSubmessage(unsigned int startIndex, unsigned int length) const {
-        MessagePtr newMessage(new Message());
-        newMessage->_data.insert(newMessage->_data.end(), _data.begin() + startIndex, _data.begin() + startIndex + length);
+    Message Message::getSubmessage(unsigned int startIndex, unsigned int length) const {
+        Message newMessage;
+        newMessage._data.insert(newMessage._data.end(), _data.begin() + startIndex, _data.begin() + startIndex + length);
         return newMessage;
     }
 
-    MessagePtr Message::getLeft(unsigned int length) const {
+    Message Message::getLeft(unsigned int length) const {
         return getSubmessage(0, length);
     }
 
-    MessagePtr Message::getRight(unsigned int length) const {
+    Message Message::getRight(unsigned int length) const {
         return getSubmessage(size() - length, length);
     }
 
@@ -40,15 +40,15 @@ namespace snm
 
     template <typename T>
     void Builder::addData(T data) {
-        _message->_data.push_back(std::make_shared<Message::MessageData>(GetDataType<T>::value, data));
+        _messageData.push_back(std::make_shared<Message::MessageData>(GetDataType<T>::value, data));
     }
 
     template <typename T>
     void Builder::addDataRef(const T& data) {
-        _message->_data.push_back(std::make_shared<Message::MessageData>(GetDataType<T>::value, data));
+        _messageData.push_back(std::make_shared<Message::MessageData>(GetDataType<T>::value, data));
     }
 
-    Builder& Builder::start() { _message = MessagePtr(new Message()); return *this; }
+    Builder& Builder::start() { _messageData.clear(); return *this; }
 
     Builder& Builder::addBool(bool data) { addData(data); return *this; }
     Builder& Builder::addUShort(unsigned short data) { addData(data); return *this; }
@@ -74,9 +74,9 @@ namespace snm
     Builder& Builder::addStringVector(const std::vector<std::string>& data) { addDataRef(data); return *this; }
 
     Builder& Builder::addMessage(const Message& message) {
-        _message->_data.insert(_message->_data.end(), message._data.begin(), message._data.end());
+        _messageData.insert(_messageData.end(), message._data.begin(), message._data.end());
         return *this;
     }
 
-    MessagePtr Builder::finish() { return _message; }
+    Message Builder::finish() { return Message(std::move(_messageData)); }
 }
